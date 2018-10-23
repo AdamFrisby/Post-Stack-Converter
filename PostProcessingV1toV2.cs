@@ -26,19 +26,41 @@ public class PostProcessingV1toV2
         // LUT is complex. Only works in ColorGrading if Mode is 'LDR' or 'External'
         // Not -quite- sure how to handle this (a new custom effect?)
 
-        ConvertVignetteSettings(ppp, vignette);
-        ConvertReflectionSettings(ppp, ssr);
-        ConvertMotionBlurSettings(ppp, mb);
-        ConvertGrainSettings(ppp, grain);
+        if (original.vignette.enabled)
+            ConvertVignetteSettings(ppp, vignette);
+
+        if (original.screenSpaceReflection.enabled)
+            ConvertReflectionSettings(ppp, ssr);
+
+        if (original.motionBlur.enabled)
+            ConvertMotionBlurSettings(ppp, mb);
+
+        if (original.grain.enabled)
+            ConvertGrainSettings(ppp, grain);
+
         // Skipping fog - moved to another part of the profile.
-        ConvertChromaticAberrationSettings(ppp, ca);
-        ConvertDepthOfFieldSettings(ppp, dof);
+
+        if (original.chromaticAberration.enabled)
+            ConvertChromaticAberrationSettings(ppp, ca);
+
+        if (original.depthOfField.enabled)
+            ConvertDepthOfFieldSettings(ppp, dof);
+
         // Skipping dithering (no matching equivialent?)
-        ConvertEyeAdaptionSettings(ppp, eye);
-        ConvertAmbientOcclusionSettings(ppp, ao);
+
+        if (original.eyeAdaptation.enabled)
+            ConvertEyeAdaptionSettings(ppp, eye);
+
+        if (original.ambientOcclusion.enabled)
+            ConvertAmbientOcclusionSettings(ppp, ao);
+
         // Skipping Anti-aliasing (rightfully this shouldn't be part of a profile.)
-        ConvertBloomSettings(ppp, bloom);
-        ConvertColourGradingSettings(ppp, cg);
+
+        if (original.bloom.enabled)
+            ConvertBloomSettings(ppp, bloom);
+
+        if (original.colorGrading.enabled)
+            ConvertColourGradingSettings(ppp, cg);
 
         return ppp;
     }
@@ -46,10 +68,20 @@ public class PostProcessingV1toV2
     private static void ConvertVignetteSettings(PostProcessProfile ppp, VignetteModel.Settings vignette)
     {
         var vignette2 = ppp.AddSettings<Vignette>();
+
+        vignette2.center.overrideState = true;
         vignette2.center.value = vignette.center;
+
+        vignette2.color.overrideState = true;
         vignette2.color.value = vignette.color;
+
+        vignette2.intensity.overrideState = true;
         vignette2.intensity.value = vignette.intensity;
+
+        vignette2.mask.overrideState = true;
         vignette2.mask.value = vignette.mask;
+
+        vignette2.mode.overrideState = true;
         switch (vignette.mode)
         {
             case VignetteModel.Mode.Classic:
@@ -59,15 +91,20 @@ public class PostProcessingV1toV2
                 vignette2.mode.value = VignetteMode.Masked;
                 break;
         }
+        vignette2.opacity.overrideState = true;
         vignette2.opacity.value = vignette.opacity;
+        vignette2.rounded.overrideState = true;
         vignette2.rounded.value = vignette.rounded;
+        vignette2.roundness.overrideState = true;
         vignette2.roundness.value = vignette.roundness;
+        vignette2.smoothness.overrideState = true;
         vignette2.smoothness.value = vignette.smoothness;
     }
 
     private static void ConvertReflectionSettings(PostProcessProfile ppp, ScreenSpaceReflectionModel.Settings ssr)
     {
         var ssr2 = ppp.AddSettings<ScreenSpaceReflections>();
+        ssr2.SetAllOverridesTo(true);
         var intensity = ssr.intensity;
         ssr2.distanceFade.value = intensity.fadeDistance;
         // Not supported: intensity.fresnelFade;
@@ -99,7 +136,9 @@ public class PostProcessingV1toV2
     private static void ConvertMotionBlurSettings(PostProcessProfile ppp, MotionBlurModel.Settings mb)
     {
         var mb2 = ppp.AddSettings<MotionBlur>();
+        mb2.sampleCount.overrideState = true;
         mb2.sampleCount.value = mb.sampleCount;
+        mb2.shutterAngle.overrideState = true;
         mb2.shutterAngle.value = mb.shutterAngle;
         // Not supported: mb.frameBlending
     }
@@ -107,25 +146,35 @@ public class PostProcessingV1toV2
     private static void ConvertGrainSettings(PostProcessProfile ppp, GrainModel.Settings grain)
     {
         var grain2 = ppp.AddSettings<Grain>();
+        grain2.colored.overrideState = true;
         grain2.colored.value = grain.colored;
+        grain2.intensity.overrideState = true;
         grain2.intensity.value = grain.intensity;
+        grain2.lumContrib.overrideState = true;
         grain2.lumContrib.value = grain.luminanceContribution;
+        grain2.size.overrideState = true;
         grain2.size.value = grain.size;
     }
 
     private static void ConvertChromaticAberrationSettings(PostProcessProfile ppp, ChromaticAberrationModel.Settings ca)
     {
         var ca2 = ppp.AddSettings<ChromaticAberration>();
+        ca2.intensity.overrideState = true;
         ca2.intensity.value = ca.intensity;
+        ca2.spectralLut.overrideState = true;
         ca2.spectralLut.value = ca.spectralTexture;
     }
 
     private static void ConvertDepthOfFieldSettings(PostProcessProfile ppp, DepthOfFieldModel.Settings dof)
     {
         var dof2 = ppp.AddSettings<DepthOfField>();
+        dof2.aperture.overrideState = true;
         dof2.aperture.value = dof.aperture;
+        dof2.focalLength.overrideState = true;
         dof2.focalLength.value = dof.focalLength;
+        dof2.focusDistance.overrideState = true;
         dof2.focusDistance.value = dof.focusDistance;
+        dof2.kernelSize.overrideState = true;
         switch (dof.kernelSize)
         {
             case DepthOfFieldModel.KernelSize.VeryLarge:
@@ -147,19 +196,25 @@ public class PostProcessingV1toV2
     private static void ConvertEyeAdaptionSettings(PostProcessProfile ppp, EyeAdaptationModel.Settings eye)
     {
         var eye2 = ppp.AddSettings<AutoExposure>();
+        eye2.eyeAdaptation.overrideState = true;
         eye2.eyeAdaptation.value = eye.adaptationType == EyeAdaptationModel.EyeAdaptationType.Fixed
             ? EyeAdaptation.Fixed
             : EyeAdaptation.Progressive;
 
+        eye2.keyValue.overrideState = true;
         eye2.keyValue.value = eye.keyValue;
         // Not supported: eye.dynamicKeyValue;
         //                eye.highPercent;
         //                eye.logMax;
         //                eye.logMin;
         //                eye.lowPercent;
+        eye2.maxLuminance.overrideState = true;
         eye2.maxLuminance.value = eye.maxLuminance;
+        eye2.minLuminance.overrideState = true;
         eye2.minLuminance.value = eye.minLuminance;
+        eye2.speedDown.overrideState = true;
         eye2.speedDown.value = eye.speedDown;
+        eye2.speedUp.overrideState = true;
         eye2.speedUp.value = eye.speedUp;
     }
 
@@ -169,23 +224,33 @@ public class PostProcessingV1toV2
 
         var bloomSettings = bloom.bloom;
         // Skipping bloomSettings.antiFlicker;
+        bloom2.intensity.overrideState = true;
         bloom2.intensity.value = bloomSettings.intensity;
+        bloom2.diffusion.overrideState = true;
         bloom2.diffusion.value = bloomSettings.radius; // TODO: Unsure this is the right setting
+        bloom2.softKnee.overrideState = true;
         bloom2.softKnee.value = bloomSettings.softKnee;
+        bloom2.threshold.overrideState = true;
         bloom2.threshold.value = bloomSettings.threshold;
 
         var dirt = bloom.lensDirt;
+        bloom2.dirtIntensity.overrideState = true;
         bloom2.dirtIntensity.value = dirt.intensity;
+        bloom2.dirtTexture.overrideState = true;
         bloom2.dirtTexture.value = dirt.texture;
     }
 
     private static void ConvertAmbientOcclusionSettings(PostProcessProfile ppp, AmbientOcclusionModel.Settings oldAmbientOcclusionSettings)
     {
         var newAmbientOcclusionSettings = ppp.AddSettings<AmbientOcclusion>();
+        newAmbientOcclusionSettings.ambientOnly.overrideState = true;
         newAmbientOcclusionSettings.ambientOnly.value = oldAmbientOcclusionSettings.ambientOnly;
         // Ignoring ao.downsampling
         // Ignoring ao.forceForwardCompatibility
+        newAmbientOcclusionSettings.intensity.overrideState = true;
         newAmbientOcclusionSettings.intensity.value = oldAmbientOcclusionSettings.intensity;
+
+        newAmbientOcclusionSettings.quality.overrideState = true;
         switch (oldAmbientOcclusionSettings.sampleCount)
         {
             case AmbientOcclusionModel.SampleCount.High:
@@ -201,6 +266,8 @@ public class PostProcessingV1toV2
                 newAmbientOcclusionSettings.quality.value = AmbientOcclusionQuality.Lowest;
                 break;
         }
+
+        newAmbientOcclusionSettings.radius.overrideState = true;
         newAmbientOcclusionSettings.radius.value = oldAmbientOcclusionSettings.radius;
         // Ignoring ao.highPrecision
     }
@@ -208,6 +275,7 @@ public class PostProcessingV1toV2
     private static void ConvertColourGradingSettings(PostProcessProfile ppp, ColorGradingModel.Settings oldColorGradingSettings)
     {
         var newColorGradingSettings = ppp.AddSettings<ColorGrading>();
+        newColorGradingSettings.SetAllOverridesTo(true);
 
         // Basic Settings
         var oldBasicSettings = oldColorGradingSettings.basic;
