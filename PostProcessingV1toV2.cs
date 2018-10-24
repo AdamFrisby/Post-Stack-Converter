@@ -285,11 +285,11 @@ public class PostProcessingV1toV2
         newColorGradingSettings.hueShift.value = (oldBasicSettings.hueShift - 0.0f) * 100f;
 
         var saturation = (oldBasicSettings.saturation - 1.0f) * 100f;
-        if (saturation >= 0f)
-            saturation += 10f; // It seems that we're undercooking saturation versus the older stack
+        //if (saturation >= 0f)
+        //    saturation += 10f; // It seems that we're undercooking saturation versus the older stack
 
         newColorGradingSettings.saturation.value = saturation;
-        newColorGradingSettings.temperature.value = (oldBasicSettings.temperature - 1.0f) * 100f;
+        newColorGradingSettings.temperature.value = oldBasicSettings.temperature;
         newColorGradingSettings.tint.value = oldBasicSettings.tint;
 
         // Mixer Settings
@@ -379,16 +379,5 @@ public class PostProcessingV1toV2
         //c.b = 1.0f - c.b;
 
         return c;//.linear;
-    }
-
-    private static float AdjustW(float input)
-    {
-        return Mathf.Pow(input, 10f);
-        return Mathf.GammaToLinearSpace(input);
-    }
-
-    private static Color ColorPow10(Color inval)
-    {
-        return inval * inval * inval * inval * inval * inval * inval * inval * inval * inval;
     }
 }
