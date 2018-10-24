@@ -225,9 +225,9 @@ public class PostProcessingV1toV2
         var bloomSettings = bloom.bloom;
         // Skipping bloomSettings.antiFlicker;
         bloom2.intensity.overrideState = true;
-        bloom2.intensity.value = bloomSettings.intensity;
+        bloom2.intensity.value = bloomSettings.intensity * 3f; // Seems to be off by a factor of 3x?
         bloom2.diffusion.overrideState = true;
-        bloom2.diffusion.value = bloomSettings.radius; // TODO: Unsure this is the right setting
+        bloom2.diffusion.value = bloomSettings.radius * 2f; // TODO: Unsure this is the right setting
         bloom2.softKnee.overrideState = true;
         bloom2.softKnee.value = bloomSettings.softKnee;
         bloom2.threshold.overrideState = true;
@@ -236,7 +236,8 @@ public class PostProcessingV1toV2
         var dirt = bloom.lensDirt;
         bloom2.dirtIntensity.overrideState = true;
         bloom2.dirtIntensity.value = dirt.intensity;
-        bloom2.dirtTexture.overrideState = true;
+
+        bloom2.dirtTexture.overrideState = dirt.texture != null;
         bloom2.dirtTexture.value = dirt.texture;
     }
 
@@ -280,23 +281,28 @@ public class PostProcessingV1toV2
         // Basic Settings
         var oldBasicSettings = oldColorGradingSettings.basic;
         newColorGradingSettings.postExposure.value = oldBasicSettings.postExposure;
-        newColorGradingSettings.contrast.value = oldBasicSettings.contrast;
-        newColorGradingSettings.hueShift.value = oldBasicSettings.hueShift;
-        newColorGradingSettings.saturation.value = oldBasicSettings.saturation;
-        newColorGradingSettings.temperature.value = oldBasicSettings.temperature;
+        newColorGradingSettings.contrast.value = (oldBasicSettings.contrast - 1.0f) * 100f;
+        newColorGradingSettings.hueShift.value = (oldBasicSettings.hueShift - 0.0f) * 100f;
+
+        var saturation = (oldBasicSettings.saturation - 1.0f) * 100f;
+        if (saturation >= 0f)
+            saturation += 10f; // It seems that we're undercooking saturation versus the older stack
+
+        newColorGradingSettings.saturation.value = saturation;
+        newColorGradingSettings.temperature.value = (oldBasicSettings.temperature - 1.0f) * 100f;
         newColorGradingSettings.tint.value = oldBasicSettings.tint;
 
         // Mixer Settings
         var oldColorMixer = oldColorGradingSettings.channelMixer;
-        newColorGradingSettings.mixerBlueOutRedIn.value = oldColorMixer.red.z;
-        newColorGradingSettings.mixerBlueOutGreenIn.value = oldColorMixer.green.z;
-        newColorGradingSettings.mixerBlueOutBlueIn.value = oldColorMixer.blue.z;
-        newColorGradingSettings.mixerGreenOutRedIn.value = oldColorMixer.red.y;
-        newColorGradingSettings.mixerGreenOutGreenIn.value = oldColorMixer.green.y;
-        newColorGradingSettings.mixerGreenOutBlueIn.value = oldColorMixer.blue.y;
-        newColorGradingSettings.mixerRedOutRedIn.value = oldColorMixer.red.x;
-        newColorGradingSettings.mixerRedOutGreenIn.value = oldColorMixer.green.x;
-        newColorGradingSettings.mixerRedOutBlueIn.value = oldColorMixer.blue.x;
+        newColorGradingSettings.mixerBlueOutRedIn.value = oldColorMixer.blue.x * 100;
+        newColorGradingSettings.mixerBlueOutGreenIn.value = oldColorMixer.blue.y * 100;
+        newColorGradingSettings.mixerBlueOutBlueIn.value = oldColorMixer.blue.z * 100;
+        newColorGradingSettings.mixerGreenOutRedIn.value = oldColorMixer.green.x * 100;
+        newColorGradingSettings.mixerGreenOutGreenIn.value = oldColorMixer.green.y * 100;
+        newColorGradingSettings.mixerGreenOutBlueIn.value = oldColorMixer.green.z * 100;
+        newColorGradingSettings.mixerRedOutRedIn.value = oldColorMixer.red.x * 100;
+        newColorGradingSettings.mixerRedOutGreenIn.value = oldColorMixer.red.y * 100;
+        newColorGradingSettings.mixerRedOutBlueIn.value = oldColorMixer.red.z * 100;
 
         // Curves
         var oldColorCurves = oldColorGradingSettings.curves;
@@ -338,14 +344,51 @@ public class PostProcessingV1toV2
         */
 
         var oldColorWheels = oldColorGradingSettings.colorWheels;
-        newColorGradingSettings.gain.value = oldColorWheels.linear.gain;
-        newColorGradingSettings.gamma.value = oldColorWheels.linear.gamma;
-        newColorGradingSettings.lift.value = oldColorWheels.linear.lift;
+        if (oldColorWheels.mode == ColorGradingModel.ColorWheelMode.Linear)
+        {
+            newColorGradingSettings.gain.value = oldColorWheels.linear.gain;
+            newColorGradingSettings.gamma.value = oldColorWheels.linear.gamma;
+            newColorGradingSettings.lift.value = oldColorWheels.linear.lift;
+        }
+        else
+        {
+            var slope = WarpColor(oldColorWheels.log.slope);
+            var power = WarpColor(oldColorWheels.log.power);
+            var offset = WarpColor(oldColorWheels.log.offset);
+
+            //slope.a = AdjustW(slope.a);
+            //power.a = AdjustW(power.a);
+            //offset.a = AdjustW(offset.a);
+            
+            newColorGradingSettings.gain.value = slope;
+            newColorGradingSettings.gamma.value = power;
+            newColorGradingSettings.lift.value = offset;
+        }
 
         /* These also have no mapping in the new stack 
                 - color.log.offset;
                 - color.log.power;
                 - color.log.slope;
         */
+    }
+
+    private static Color WarpColor(Color c)
+    {
+        //c.r = 1.0f - c.r;
+        //c.g = 1.0f - c.g;
+        //c.b = 1.0f - c.b;
+
+        return c;//.linear;
+    }
+
+    private static float AdjustW(float input)
+    {
+        return Mathf.Pow(input, 10f);
+        return Mathf.GammaToLinearSpace(input);
+    }
+
+    private static Color ColorPow10(Color inval)
+    {
+        return inval * inval * inval * inval * inval * inval * inval * inval * inval * inval;
     }
 }
