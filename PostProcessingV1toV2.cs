@@ -1,9 +1,29 @@
 using UnityEngine;
 using UnityEngine.PostProcessing;
 using UnityEngine.Rendering.PostProcessing;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public class PostProcessingV1toV2
 {
+#if UNITY_EDITOR
+    [MenuItem("CONTEXT/PostProcessingProfile/Convert Profile")]
+    public static void ConvertProfile()
+    {
+        if (Selection.activeObject is PostProcessingProfile)
+        {
+            var converted = Convert(Selection.activeObject as PostProcessingProfile);
+            var assetPath = AssetDatabase.GetAssetPath(Selection.activeObject);
+            if (assetPath.EndsWith(".asset"))
+            {
+                var newPath = AssetDatabase.GenerateUniqueAssetPath(assetPath);
+                AssetDatabase.CreateAsset(converted, newPath);
+            }
+        }
+    }
+#endif
+    
     public static PostProcessProfile Convert(PostProcessingProfile original)
     {
         var ppp = ScriptableObject.CreateInstance<PostProcessProfile>();
@@ -249,7 +269,7 @@ public class PostProcessingV1toV2
         // Ignoring ao.downsampling
         // Ignoring ao.forceForwardCompatibility
         newAmbientOcclusionSettings.intensity.overrideState = true;
-        newAmbientOcclusionSettings.intensity.value = oldAmbientOcclusionSettings.intensity;
+        newAmbientOcclusionSettings.intensity.value = oldAmbientOcclusionSettings.intensity / 2f; // Intensity seems less impactful in postv2
 
         newAmbientOcclusionSettings.quality.overrideState = true;
         switch (oldAmbientOcclusionSettings.sampleCount)
@@ -277,6 +297,10 @@ public class PostProcessingV1toV2
     {
         var newColorGradingSettings = ppp.AddSettings<ColorGrading>();
         newColorGradingSettings.SetAllOverridesTo(true);
+
+        // Old post was LDR only
+        newColorGradingSettings.gradingMode.value = GradingMode.LowDefinitionRange;
+        newColorGradingSettings.gradingMode.overrideState = true;
 
         // Basic Settings
         var oldBasicSettings = oldColorGradingSettings.basic;
