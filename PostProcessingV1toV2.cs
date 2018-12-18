@@ -9,6 +9,7 @@ public class PostProcessingV1toV2
 {
 #if UNITY_EDITOR
     [MenuItem("CONTEXT/PostProcessingProfile/Convert Profile")]
+    [MenuItem("CONTEXT/SpacePostProcessingProfile/Convert Profile")]
     public static void ConvertProfile()
     {
         if (Selection.activeObject is PostProcessingProfile)
@@ -45,7 +46,7 @@ public class PostProcessingV1toV2
 
         // LUT is complex. Only works in ColorGrading if Mode is 'LDR' or 'External'
         // Not -quite- sure how to handle this (a new custom effect?)
-
+        
         if (original.vignette.enabled)
             ConvertVignetteSettings(ppp, vignette);
 
@@ -79,8 +80,27 @@ public class PostProcessingV1toV2
         if (original.bloom.enabled)
             ConvertBloomSettings(ppp, bloom);
 
+
+        const bool haveOldShadersAvailable = true;
+
         if (original.colorGrading.enabled)
-            ConvertColourGradingSettings(ppp, cg);
+        {
+            if (haveOldShadersAvailable)
+            {
+                ConvertColourGradingViaLUT(ppp, original.colorGrading);
+            }
+            else
+            {
+                ConvertColourGradingSettings(ppp, cg);
+            }
+        }
+
+        if (ppp.GetSetting<ColorGrading>() != null && lut.lut != null)
+        {
+            var parameter = ppp.GetSetting<ColorGrading>().externalLut;
+            parameter.overrideState = true;
+            parameter.value = lut.lut;
+        }
 
         return ppp;
     }
@@ -291,6 +311,35 @@ public class PostProcessingV1toV2
         newAmbientOcclusionSettings.radius.overrideState = true;
         newAmbientOcclusionSettings.radius.value = oldAmbientOcclusionSettings.radius;
         // Ignoring ao.highPrecision
+    }
+
+    public static void ConvertColourGradingViaLUT(PostProcessProfile ppp,
+        ColorGradingModel oldColorGradingSettings)
+    {
+        var materialFactory = new MaterialFactory();
+
+        var uberShader = materialFactory.Get("Hidden/Post FX/Uber Shader");
+        uberShader.shaderKeywords = new string[0];
+
+        var cgc = new ColorGradingComponent();
+        
+        cgc.Init(new PostProcessingContext
+        {
+            materialFactory = materialFactory
+        }, oldColorGradingSettings);
+        
+        cgc.Prepare(uberShader);
+
+        var cg = ppp.AddSettings<ColorGrading>();
+
+        cg.gradingMode.value = GradingMode.LowDefinitionRange;
+        cg.gradingMode.overrideState = true;
+
+        cg.ldrLut.value = cgc.model.bakedLut;
+        cg.ldrLut.overrideState = true;
+
+        cg.ldrLutContribution.value = 1.0f;
+        cg.ldrLutContribution.overrideState = true;
     }
 
     private static void ConvertColourGradingSettings(PostProcessProfile ppp, ColorGradingModel.Settings oldColorGradingSettings)
