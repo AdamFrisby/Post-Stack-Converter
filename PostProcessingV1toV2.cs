@@ -87,7 +87,7 @@ public class PostProcessingV1toV2
         {
             if (haveOldShadersAvailable)
             {
-                ConvertColourGradingViaLUT(ppp, original.colorGrading);
+                ConvertColourGradingViaLUT(ppp, original.colorGrading, original);
             }
             else
             {
@@ -314,7 +314,7 @@ public class PostProcessingV1toV2
     }
 
     public static void ConvertColourGradingViaLUT(PostProcessProfile ppp,
-        ColorGradingModel oldColorGradingSettings)
+        ColorGradingModel oldColorGradingSettings, PostProcessingProfile oldPPP)
     {
         var materialFactory = new MaterialFactory();
 
@@ -322,12 +322,14 @@ public class PostProcessingV1toV2
         uberShader.shaderKeywords = new string[0];
 
         var cgc = new ColorGradingComponent();
-        
+
         cgc.Init(new PostProcessingContext
         {
             materialFactory = materialFactory
         }, oldColorGradingSettings);
-        
+
+        cgc.context.profile = oldPPP;
+
         cgc.Prepare(uberShader);
 
         var cg = ppp.AddSettings<ColorGrading>();
