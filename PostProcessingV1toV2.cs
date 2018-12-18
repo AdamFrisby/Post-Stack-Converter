@@ -81,7 +81,7 @@ public class PostProcessingV1toV2
             ConvertBloomSettings(ppp, bloom);
 
 
-        const bool haveOldShadersAvailable = true;
+        const bool haveOldShadersAvailable = false;
 
         if (original.colorGrading.enabled)
         {
@@ -337,11 +337,37 @@ public class PostProcessingV1toV2
         cg.gradingMode.value = GradingMode.LowDefinitionRange;
         cg.gradingMode.overrideState = true;
 
-        cg.ldrLut.value = cgc.model.bakedLut;
+        var lut = cgc.model.bakedLut;
+        
+        /*
+        var textureFormat = TextureFormat.RGBAHalf;
+        if (!SystemInfo.SupportsTextureFormat(textureFormat))
+            textureFormat = TextureFormat.ARGB32;
+
+        var lutAsT2D = lut.GrabTexture(dontUseCopyTexture: true, format: textureFormat).GetPixels();
+
+        for (int i = 0; i < lutAsT2D.Length; i++)
+        {
+            lutAsT2D[i] = lutAsT2D[i].gamma;
+        }
+
+        var newLut = new Texture2D(lut.width, lut.height, textureFormat, false, true);
+        newLut.SetPixels(lutAsT2D);
+        newLut.Apply(true, false);
+        */
+
+        cg.ldrLut.value = lut;//newLut;//TextureCompositor.GPUDegamma(newLut, null, true);
+        
         cg.ldrLut.overrideState = true;
 
         cg.ldrLutContribution.value = 1.0f;
         cg.ldrLutContribution.overrideState = true;
+
+        var exposure = ppp.AddSettings<AutoExposure>();
+        exposure.eyeAdaptation.value = EyeAdaptation.Fixed;
+        exposure.eyeAdaptation.overrideState = true;
+        exposure.keyValue.value = 1.0f;
+        exposure.keyValue.overrideState = true;
     }
 
     private static void ConvertColourGradingSettings(PostProcessProfile ppp, ColorGradingModel.Settings oldColorGradingSettings)
@@ -357,7 +383,7 @@ public class PostProcessingV1toV2
         var oldBasicSettings = oldColorGradingSettings.basic;
         newColorGradingSettings.postExposure.value = oldBasicSettings.postExposure;
         newColorGradingSettings.contrast.value = (oldBasicSettings.contrast - 1.0f) * 100f;
-        newColorGradingSettings.hueShift.value = (oldBasicSettings.hueShift - 0.0f) * 100f;
+        newColorGradingSettings.hueShift.value = (oldBasicSettings.hueShift - 0.0f);// * 100f; // Hue is identical
 
         var saturation = (oldBasicSettings.saturation - 1.0f) * 100f;
         //if (saturation >= 0f)
@@ -381,15 +407,44 @@ public class PostProcessingV1toV2
 
         // Curves
         var oldColorCurves = oldColorGradingSettings.curves;
+
+        // Need to get this to work in HDR
         newColorGradingSettings.blueCurve.value.curve = oldColorCurves.blue.curve;
         newColorGradingSettings.greenCurve.value.curve = oldColorCurves.green.curve;
         newColorGradingSettings.redCurve.value.curve = oldColorCurves.red.curve;
+        newColorGradingSettings.masterCurve.value.curve = oldColorCurves.master.curve;
+
+        var totalPoints = oldColorCurves.red.curve.length + oldColorCurves.green.curve.length +
+                          oldColorCurves.blue.curve.length + oldColorCurves.master.curve.length;
+
+        var defaultYRGB = false;
+
+        if (totalPoints == 8)
+        {
+            // ReSharper disable CompareOfFloatsByEqualityOperator
+            var usingPo = oldColorCurves.red.curve[0].inTangent == 1f && oldColorCurves.red.curve[0].outTangent == 1f &&
+                          oldColorCurves.green.curve[0].inTangent == 1f && oldColorCurves.green.curve[0].outTangent == 1f &&
+                          oldColorCurves.blue.curve[0].inTangent == 1f && oldColorCurves.blue.curve[0].outTangent == 1f &&
+                          oldColorCurves.master.curve[0].inTangent == 1f && oldColorCurves.master.curve[0].outTangent == 1f &&
+                          oldColorCurves.red.curve[1].inTangent == 1f && oldColorCurves.red.curve[1].outTangent == 1f &&
+                          oldColorCurves.green.curve[1].inTangent == 1f && oldColorCurves.green.curve[1].outTangent == 1f &&
+                          oldColorCurves.blue.curve[1].inTangent == 1f && oldColorCurves.blue.curve[1].outTangent == 1f &&
+                          oldColorCurves.master.curve[1].inTangent == 1f && oldColorCurves.master.curve[1].outTangent == 1f;
+            // ReSharper restore CompareOfFloatsByEqualityOperator
+
+            if (usingPo)
+                defaultYRGB = true;
+        }
+        
+        if(defaultYRGB)
+            newColorGradingSettings.gradingMode.value = GradingMode.HighDefinitionRange; // No YRGB curve is in use, HDR is fine.
+
         newColorGradingSettings.hueVsHueCurve.value.curve = oldColorCurves.hueVShue.curve;
         newColorGradingSettings.hueVsSatCurve.value.curve = oldColorCurves.hueVSsat.curve;
         newColorGradingSettings.lumVsSatCurve.value.curve = oldColorCurves.lumVSsat.curve;
         newColorGradingSettings.satVsSatCurve.value.curve = oldColorCurves.satVSsat.curve;
-        newColorGradingSettings.masterCurve.value.curve = oldColorCurves.master.curve;
-
+        
+        
         // Tone mapping
         var oldTonemapper = oldColorGradingSettings.tonemapping;
         switch (oldTonemapper.tonemapper)
