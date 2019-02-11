@@ -1,3 +1,4 @@
+using SCPE;
 using UnityEngine;
 using UnityEngine.PostProcessing;
 using UnityEngine.Rendering.PostProcessing;
@@ -91,15 +92,8 @@ public class PostProcessingV1toV2
             }
             else
             {
-                ConvertColourGradingSettings(ppp, cg);
+                ConvertColourGradingSettings(ppp, cg, lut);
             }
-        }
-
-        if (ppp.GetSetting<ColorGrading>() != null && lut.lut != null)
-        {
-            var parameter = ppp.GetSetting<ColorGrading>().externalLut;
-            parameter.overrideState = true;
-            parameter.value = lut.lut;
         }
 
         return ppp;
@@ -370,7 +364,7 @@ public class PostProcessingV1toV2
         exposure.keyValue.overrideState = true;
     }
 
-    private static void ConvertColourGradingSettings(PostProcessProfile ppp, ColorGradingModel.Settings oldColorGradingSettings)
+    private static void ConvertColourGradingSettings(PostProcessProfile ppp, ColorGradingModel.Settings oldColorGradingSettings, UserLutModel.Settings lut)
     {
         var newColorGradingSettings = ppp.AddSettings<ColorGrading>();
         newColorGradingSettings.SetAllOverridesTo(true);
@@ -418,6 +412,7 @@ public class PostProcessingV1toV2
                           oldColorCurves.blue.curve.length + oldColorCurves.master.curve.length;
 
         var defaultYRGB = false;
+        var noCurves = false;
 
         if (totalPoints == 8)
         {
@@ -433,11 +428,77 @@ public class PostProcessingV1toV2
             // ReSharper restore CompareOfFloatsByEqualityOperator
 
             if (usingPo)
+            {
                 defaultYRGB = true;
+                noCurves = true;
+            }
+        } else if (totalPoints == 0)
+            noCurves = true;
+        else if (oldColorCurves.red.curve.length == 0 && oldColorCurves.red.Evaluate(0.5f) == 0f &&
+                 oldColorCurves.green.curve.length == 0 && oldColorCurves.green.Evaluate(0.5f) == 0f &&
+                 oldColorCurves.blue.curve.length == 0 && oldColorCurves.blue.Evaluate(0.5f) == 0f &&
+                 oldColorCurves.master.curve.length == 0 && oldColorCurves.master.Evaluate(0.5f) == 0f)
+            noCurves = true;
+
+        if (lut.lut != null)
+            defaultYRGB = false;
+
+        //if(defaultYRGB)
+        newColorGradingSettings.gradingMode.value = GradingMode.HighDefinitionRange; // No YRGB curve is in use, HDR is fine.
+
+        if (!defaultYRGB)
+        {
+            Color[] pixels = null;
+            
+            if (lut.lut != null)
+            {
+                pixels = lut.lut.GetPixelsRT();
+            }
+            else
+            {
+                var defaultLut = ResourceManager.LoadTexture("Textures/NeutralLdrLut");
+                pixels = defaultLut.GetPixelsRT();
+            }
+
+            if (pixels != null)
+            {
+                float sum = 0f;
+                if(!noCurves)
+                    for (int i = 0; i < pixels.Length; i++)
+                    {
+                        var r = pixels[i].r / 255f;
+                        var g = pixels[i].g / 255f;
+                        var b = pixels[i].b / 255f;
+
+                        r = oldColorCurves.red.Evaluate(r) * oldColorCurves.master.Evaluate(r);
+                        g = oldColorCurves.green.Evaluate(g) * oldColorCurves.master.Evaluate(g);
+                        b = oldColorCurves.blue.Evaluate(b) * oldColorCurves.master.Evaluate(b);
+
+                        sum += r + g + b;
+
+                        pixels[i] = new Color(r, g, b, 1.0f);
+                    }
+
+                if (sum > 1f) // For some reason, we rarely generate weird curves which produce values approx. 0 (but not quite) - this just ensures the resulting LUT averages at least 0.005 brightness on a 0-255 scale. (i.e. not pure black, but close is okay)
+                {
+                    Texture2D tex = new Texture2D(1024, 32, TextureFormat.RGBAHalf, false, true);
+                    tex.wrapMode = TextureWrapMode.Clamp;
+                    tex.filterMode = FilterMode.Point;
+                    tex.SetPixels(pixels);
+                    tex.Apply(true, true);
+
+                    var lutRenderer = ppp.AddSettings<LUT>();
+                    lutRenderer.lutFar.overrideState = true;
+                    lutRenderer.lutNear.overrideState = true;
+                    lutRenderer.lutFar.value = tex;
+                    lutRenderer.lutNear.value = tex;
+                    lutRenderer.intensity.overrideState = true;
+                    lutRenderer.intensity.value = 1.0f;
+                    lutRenderer.mode.value = LUT.Mode.Single;
+                    lutRenderer.mode.overrideState = true;
+                }
+            }
         }
-        
-        if(defaultYRGB)
-            newColorGradingSettings.gradingMode.value = GradingMode.HighDefinitionRange; // No YRGB curve is in use, HDR is fine.
 
         newColorGradingSettings.hueVsHueCurve.value.curve = oldColorCurves.hueVShue.curve;
         newColorGradingSettings.hueVsSatCurve.value.curve = oldColorCurves.hueVSsat.curve;
