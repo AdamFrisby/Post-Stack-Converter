@@ -452,12 +452,12 @@ public class PostProcessingV1toV2
             
             if (lut.lut != null)
             {
-                pixels = lut.lut.GetPixelsRT();
+                pixels = lut.lut.GetPixels();
             }
             else
             {
                 var defaultLut = ResourceManager.LoadTexture("Textures/NeutralLdrLut");
-                pixels = defaultLut.GetPixelsRT();
+                pixels = defaultLut.GetPixels();
             }
 
             if (pixels != null)
